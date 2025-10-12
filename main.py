@@ -74,7 +74,7 @@ def main(context):
         if not context.req.body:
             return context.res.json({'ok': False, 'message': 'Request body is empty'}, 400)
 
-        message_document = json.loads(context.req.body)
+        message_document = context.req.body if isinstance(context.req.body, dict) else json.loads(context.req.body)
 
         sender_id = message_document.get('senderId')
         text = message_document.get('text')
