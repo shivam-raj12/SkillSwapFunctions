@@ -77,9 +77,9 @@ def update_summary(client, owner_id, other_user_id, last_message_text, last_mess
 
 def main(context):
     client = (Client()
-              .set_endpoint(os.environ.get('APPWRITE_ENDPOINT'))  # Corrected to use env var
-              .set_project(os.environ.get('APPWRITE_PROJECT'))
-              .set_key(os.environ.get('APPWRITE_API_KEY'))
+              .set_endpoint("https://cloud.appwrite.io/v1")
+              .set_project(os.environ["APPWRITE_FUNCTION_PROJECT_ID"])
+              .set_key(context.req.headers["x-appwrite-key"])
               )
 
     try:
