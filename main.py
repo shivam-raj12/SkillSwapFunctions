@@ -72,7 +72,7 @@ def main(context):
 
     try:
         if not context.req.bodyJson:
-            return context.res.json({'ok': False, 'message': 'Request body is empty'}, 400)
+            return context.res.json({'ok': False, 'message': 'Request body is empty'})
 
         message_document = context.req.bodyJson
 
@@ -83,7 +83,7 @@ def main(context):
 
         if not all([sender_id, conversation_id, text]):
             context.log('Missing senderId, conversationId, or text.')
-            return context.res.json({'ok': False, 'message': 'Invalid message payload'}, 400)
+            return context.res.json({'ok': False, 'message': 'Invalid message payload'})
 
         user_ids = conversation_id.split('_')
 
@@ -115,4 +115,4 @@ def main(context):
 
     except Exception as e:
         context.log(f'Function execution failed: {e}')
-        return context.res.json({'ok': False, 'error': str(e)}, 500)
+        return context.res.json({'ok': False, 'error': str(e)})
