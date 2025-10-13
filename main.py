@@ -1,12 +1,12 @@
-import json
 import os
-from appwrite.client import Client
-from appwrite.services.databases import Databases
-from appwrite.query import Query
-from appwrite.id import ID
 
-DATABASE_ID = os.environ.get('APPWRITE_DATABASE_ID')
-CONVERSATIONS_COLLECTION_ID = os.environ.get('CONVERSATIONS_COLLECTION_ID')
+from appwrite.client import Client
+from appwrite.id import ID
+from appwrite.query import Query
+from appwrite.services.databases import Databases
+
+DATABASE_ID = os.environ['APPWRITE_DATABASE_ID']
+CONVERSATIONS_COLLECTION_ID = os.environ['CONVERSATIONS_COLLECTION_ID']
 
 
 def update_summary(client, owner_id, other_user_id, last_message_text, last_message_timestamp, unread_count_change,
