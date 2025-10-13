@@ -71,10 +71,10 @@ def main(context):
               )
 
     try:
-        if not context.req.bodyJson:
+        if not context.req.body_json:
             return context.res.json({'ok': False, 'message': 'Request body is empty'})
 
-        message_document = context.req.bodyJson
+        message_document = context.req.body_json
 
         sender_id = message_document.get('senderId')
         text = message_document.get('text')
