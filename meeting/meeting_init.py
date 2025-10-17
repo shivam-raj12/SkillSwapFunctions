@@ -20,7 +20,7 @@ VIDEOSDK_SECRET_KEY = os.environ.get('VIDEOSDK_SECRET_KEY')
 VIDEOSDK_API_BASE = "https://api.videosdk.live/v2"
 
 
-def generate_videosdk_token(room_id: str, is_host: bool = False):
+def generate_videosdk_token():
     EXPIRY_TIME = int(datetime.now().timestamp()) + 7200
     payload = {
         'apikey': VIDEOSDK_API_KEY,
@@ -33,7 +33,7 @@ def generate_videosdk_token(room_id: str, is_host: bool = False):
 
 
 def create_videosdk_meeting():
-    auth_token = generate_videosdk_token('temp-room-creation', is_host = True)
+    auth_token = generate_videosdk_token()
 
     headers = {
         'Authorization': f'Bearer {auth_token}',
@@ -61,10 +61,10 @@ def main(context):
 
         databases = Databases(client)
 
-        if not context.req.body:
+        if not context.req.body_json:
             return context.res.json({'error': 'Missing request body.'}, 400)
 
-        payload = json.loads(context.req.body)
+        payload = context.req.body_json
 
         sender_id = payload.get('senderId')
         receiver_id = payload.get('receiverId')
@@ -100,7 +100,7 @@ def main(context):
             ]
         )
 
-        join_token = generate_videosdk_token(meeting_id, is_host = False)
+        join_token = generate_videosdk_token()
 
         return context.res.json({
             'success': True,
