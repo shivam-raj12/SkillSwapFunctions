@@ -11,7 +11,6 @@ from appwrite.id import ID
 
 APPWRITE_ENDPOINT = os.environ.get('APPWRITE_ENDPOINT')
 APPWRITE_PROJECT_ID = os.environ.get('APPWRITE_PROJECT_ID')
-APPWRITE_API_KEY = os.environ.get('APPWRITE_API_KEY')
 DATABASE_ID = os.environ.get('DATABASE_ID')
 SESSIONS_COLLECTION_ID = os.environ.get('SESSIONS_COLLECTION_ID')
 
@@ -21,22 +20,20 @@ VIDEOSDK_SECRET_KEY = os.environ.get('VIDEOSDK_SECRET_KEY')
 VIDEOSDK_API_BASE = "https://api.videosdk.live/v2"
 
 
-def generate_videosdk_token():
+def generate_videosdk_token(room_id: str, is_host: bool = False):
     EXPIRY_TIME = int(datetime.now().timestamp()) + 7200
-
     payload = {
         'apikey': VIDEOSDK_API_KEY,
         'permissions': ['allow_join', 'allow_start_recording', 'allow_end_recording'],
         'iat': int(datetime.now().timestamp()),
         'exp': EXPIRY_TIME
     }
-
     token = jwt.encode(payload, VIDEOSDK_SECRET_KEY, algorithm = 'HS256')
     return token
 
 
 def create_videosdk_meeting():
-    auth_token = generate_videosdk_token()
+    auth_token = generate_videosdk_token('temp-room-creation', is_host = True)
 
     headers = {
         'Authorization': f'Bearer {auth_token}',
@@ -45,10 +42,8 @@ def create_videosdk_meeting():
 
     try:
         response = requests.post(f'{VIDEOSDK_API_BASE}/rooms', headers = headers)
-        response.raise_for_status()  # Check for HTTP errors
-
+        response.raise_for_status()
         data = response.json()
-
         return data.get('roomId')
 
     except requests.exceptions.RequestException as e:
@@ -57,27 +52,27 @@ def create_videosdk_meeting():
         raise Exception("Failed to contact VideoSDK API or create meeting room.")
 
 
-
 def main(context):
     try:
         client = Client()
         client.set_endpoint(APPWRITE_ENDPOINT)
         client.set_project(APPWRITE_PROJECT_ID)
+        client.set_key(context.req.headers["x-appwrite-key"])
 
         databases = Databases(client)
 
         if not context.req.body:
-            return context.res.json({'error': 'Missing request body. Please send session details.'}, 400)
+            return context.res.json({'error': 'Missing request body.'}, 400)
 
         payload = json.loads(context.req.body)
 
         sender_id = payload.get('senderId')
         receiver_id = payload.get('receiverId')
         schedule_details = payload.get('scheduleDetails')
+        conversation_id = payload.get('conversationId')
 
-        if not all([sender_id, receiver_id, schedule_details]):
-            return context.res.json({'error': 'Missing required fields: senderId, receiverId, or scheduleDetails.'},
-                                    400)
+        if not all([sender_id, receiver_id, schedule_details, conversation_id]):
+            return context.res.json({'error': 'Missing required fields.'}, 400)
 
         meeting_id = create_videosdk_meeting()
 
@@ -86,6 +81,7 @@ def main(context):
 
         session_document = {
             'meetingId': meeting_id,
+            'conversationId': conversation_id,
             'participants': [sender_id, receiver_id],
             'scheduleDetails': json.dumps(schedule_details),
             'status': 'SCHEDULED'
@@ -104,13 +100,12 @@ def main(context):
             ]
         )
 
-        join_token = generate_videosdk_token()
+        join_token = generate_videosdk_token(meeting_id, is_host = False)
 
         return context.res.json({
             'success': True,
-            'message': 'Video session created and meeting ID generated.',
             'meetingId': meeting_id,
-            'joinToken': join_token  # The token for the receiver to join the room
+            'joinToken': join_token
         }, 201)
 
     except Exception as e:
