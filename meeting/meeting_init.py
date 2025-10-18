@@ -35,13 +35,14 @@ def generate_videosdk_token():
 def create_videosdk_meeting():
     auth_token = generate_videosdk_token()
 
-    headers = {
-        'Authorization': f'Bearer {auth_token}',
-        'Content-Type': 'application/json'
+    headers = {'Authorization' : auth_token,'Content-Type' : 'application/json'}
+
+    data = {
+        "autoCloseConfig": "manual"
     }
 
     try:
-        response = requests.post(f'{VIDEOSDK_API_BASE}/rooms', headers = headers)
+        response = requests.post(f'{VIDEOSDK_API_BASE}/rooms', headers = headers, json = data)
         response.raise_for_status()
         data = response.json()
         return data.get('roomId')
