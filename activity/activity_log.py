@@ -114,10 +114,6 @@ def create_single_activity(databases, collection_id, document_data, action):
 def main(context):
     context.log("Activity Logger Function Started.")
 
-    if not all([APPWRITE_API_KEY, DATABASE_ID, ACTIVITY_COLLECTION_ID, PROFILES_COLLECTION_ID]):
-        context.log("Error: Missing one or more required environment variables.")
-        return context.res.empty()
-
     try:
         client = (Client()
                   .set_endpoint("https://cloud.appwrite.io/v1")
@@ -126,7 +122,7 @@ def main(context):
                   )
         databases = Databases(client)
 
-        event_data = json.loads(context.req.body_json)
+        event_data = context.req.body_json
         document_data = event_data.get('payload', {})
         old_document_data = event_data.get('old', {})
 
