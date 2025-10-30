@@ -1,5 +1,4 @@
 import os
-import json
 from appwrite.client import Client
 from appwrite.services.databases import Databases
 from appwrite.query import Query
@@ -123,6 +122,7 @@ def main(context):
         databases = Databases(client)
 
         event_data = context.req.body_json
+        context.log(event_data)
         document_data = event_data.get('payload', {})
         old_document_data = event_data.get('old', {})
 
