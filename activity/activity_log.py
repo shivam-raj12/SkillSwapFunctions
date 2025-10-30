@@ -166,5 +166,8 @@ def main(context):
         else:
             context.log("No activity generated for this event based on rules.")
 
+        return context.res.json({'ok': True})
+
     except Exception as e:
         context.log(f"An unexpected error occurred: {e}")
+        return context.res.json({'ok': False, 'error': str(e)})
