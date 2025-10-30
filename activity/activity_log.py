@@ -116,7 +116,7 @@ def main(context):
 
     if not all([APPWRITE_API_KEY, DATABASE_ID, ACTIVITY_COLLECTION_ID, PROFILES_COLLECTION_ID]):
         context.log("Error: Missing one or more required environment variables.")
-        return
+        return context.res.empty()
 
     try:
         client = (Client()
@@ -132,7 +132,7 @@ def main(context):
 
         if not document_data or not document_data.get('$collectionId'):
             context.log("Error: Event payload is missing document data or collection ID.")
-            return
+            return context.res.empty()
 
         collection_id = document_data['$collectionId']
         event_name = context.req.headers.get('x-appwrite-event', '')
@@ -146,7 +146,7 @@ def main(context):
             activities_to_log = create_meeting_activities(databases, document_data, old_document_data, action)
         elif collection_id == 'conversations' and action == 'update':
             context.log("Ignoring conversation update event.")
-            return
+            return context.res.empty()
         else:
             activity = create_single_activity(databases, collection_id, document_data, action)
             if activity:
@@ -171,3 +171,4 @@ def main(context):
     except Exception as e:
         context.log(f"An unexpected error occurred: {e}")
         return context.res.json({'ok': False, 'error': str(e)})
+
