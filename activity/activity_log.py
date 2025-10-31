@@ -100,7 +100,7 @@ def main(context):
         if action == "create":
             desc = f"Welcome {getNameWithId(database, user_id, context)}! Your profile has been created."
         else:
-            desc = f"Profile updated for {getNameWithId(database, user_id, context)}."
+            desc = f"You updated your profile."
 
         write_activity(database, user_id, desc, context)
 
@@ -121,8 +121,8 @@ def main(context):
         context.log(f"Resolved participant names: {user_a} → {name_a}, {user_b} → {name_b}")
 
         if action == "create":
-            desc_a = f"You scheduled a meeting with {name_b}."
-            desc_b = f"You scheduled a meeting with {name_a}."
+            desc_a = f"You scheduled a session with {name_b}."
+            desc_b = f"You scheduled a session with {name_a}."
             write_activity(database, user_a, desc_a, context)
             write_activity(database, user_b, desc_b, context)
 
