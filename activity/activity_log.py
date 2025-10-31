@@ -79,7 +79,10 @@ def main(context):
     context.log(f"Request body: {body}")
 
     # --- Detect which collection triggered this ---
-    match = re.search(r"collections\.(\w+)\.documents\.\w+\.(create|update)", event)
+    match = re.search(
+        r"(?:.*\.)?(?:collections|tables)\.(\w+)\.(?:documents|rows)\.[\w-]+\.(create|update)",
+        event
+    )
     if not match:
         context.log("⚠️ Not a tracked collection. Exiting.")
         return context.res.json({"status": "ignored", "reason": "not a tracked collection"})
