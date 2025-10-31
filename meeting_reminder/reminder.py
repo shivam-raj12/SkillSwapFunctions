@@ -1,6 +1,6 @@
 import os
 import json
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 from appwrite.client import Client
 from appwrite.services.databases import Databases
@@ -8,116 +8,116 @@ from appwrite.services.messaging import Messaging
 from appwrite.query import Query
 from appwrite.id import ID
 
-DATABASE_ID = os.environ.get("MEETINGS_DATABASE_ID", "default_database_id")
-COLLECTION_ID = os.environ.get("MEETINGS_COLLECTION_ID", "meetings")
+# Environment variables
 URL_HOST = os.environ.get("URL_HOST")
-
 
 def get_day_name(date_obj):
     return date_obj.strftime('%A')
 
-
 def main(context):
+    context.log("⚙️ Reminder Cron Function started.")
+
+    # 1️⃣ Initialize Appwrite Client
     try:
-        client = (Client()
-                  .set_endpoint("https://cloud.appwrite.io/v1")
-                  .set_project(os.environ["APPWRITE_FUNCTION_PROJECT_ID"])
-                  .set_key(context.req.headers["x-appwrite-key"])
-                  )
+        client = (
+            Client()
+            .set_endpoint("https://fra.cloud.appwrite.io/v1")
+            .set_project("skill-swap")
+            .set_key(context.req.headers["x-appwrite-key"])
+        )
+        context.log("✅ Appwrite Client initialized.")
     except Exception as e:
-        context.log(f"Client initialization failed: {e}")
-        return context.res.json({'success': False, 'error': 'Client initialization failed.'})
+        context.log(f"❌ Client initialization failed: {e}")
+        return context.res.json({"success": False, "error": "Client initialization failed."})
 
     databases = Databases(client)
     messaging = Messaging(client)
 
-    context.log("Scheduled Reminder Cron function started.")
-
-    now_utc = datetime.utcnow().replace(tzinfo=ZoneInfo("UTC"))
-    context.log(f"Current UTC time: {now_utc.strftime('%Y-%m-%d %H:%M')}")
+    # 2️⃣ Current UTC time
+    now_utc = datetime.now(timezone.utc).replace(second=0, microsecond=0)  # Round to minute
+    query_time_utc = (now_utc + timedelta(minutes=15)).strftime("%H:%M")  # Meetings 15 min ahead
+    context.log(f"Current UTC time: {now_utc.strftime('%H:%M')}, Query UTC time: {query_time_utc}")
 
     try:
+        # 3️⃣ Query meetings scheduled at query_time_utc
         response = databases.list_documents(
-            database_id=DATABASE_ID,
-            collection_id=COLLECTION_ID,
+            database_id="68de2d7c003c475d5c24",
+            collection_id="meetings",
             queries=[
-                Query.equal('status', 'SCHEDULED')
+                Query.equal("status", "SCHEDULED"),
+                Query.contains("scheduleDetails", f'"utcTime": "{query_time_utc}"')
             ]
         )
-
-        schedules = response.get('documents', [])
-        if not schedules:
-            context.log('No scheduled meetings found.')
-            return context.res.json({'success': True, 'message': 'No meetings found.'})
+        meetings = response.get("documents", [])
+        if not meetings:
+            context.log("No meetings found for this time.")
+            return context.res.json({"success": True, "message": "No meetings to send."})
 
         sent_count = 0
 
-        for schedule in schedules:
+        for meeting in meetings:
             try:
-                details = json.loads(schedule.get('scheduleDetails'))
-            except json.JSONDecodeError as e:
-                context.log(f"Error parsing JSON for document {schedule.get('$id')}: {e}")
+                details = json.loads(meeting.get("scheduleDetails", "{}"))
+            except json.JSONDecodeError:
+                context.log(f"Skipping meeting {meeting.get('$id')}: Invalid JSON in scheduleDetails.")
                 continue
 
-            utc_time_str = details.get('utcTime')
-            user_timezone = details.get('timezone')
-            meeting_id = schedule.get('meetingId')
-            schedule_frequency = details.get('frequency', '').strip()
-            start_date_str = details.get('startDate')
+            utc_time_str = details.get("utcTime")
+            user_timezone = details.get("timezone")
+            meeting_id = meeting.get("meetingId")
+            schedule_frequency = details.get("frequency", "").strip()
+            start_date_str = details.get("startDate")
+            time = datetime.strptime(utc_time_str, "%H:%M").replace(tzinfo=ZoneInfo("UTC")).astimezone(ZoneInfo(user_timezone))
 
-            if not utc_time_str or not user_timezone:
-                context.log(f"Skipping {schedule.get('$id')}: Missing utcTime or timezone.")
+            if not utc_time_str or not user_timezone or not start_date_str:
+                context.log(f"Skipping meeting {meeting.get('$id')}: Missing required fields.")
                 continue
 
+            # Parse start date and UTC time
             try:
-                start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date()
-            except Exception:
-                context.log(f"Skipping {schedule.get('$id')}: Invalid startDate format.")
-                continue
-
-            if now_utc.date() < start_date:
-                context.log(f"Skipping {schedule.get('$id')}: Schedule starts later than today.")
-                continue
-
-            try:
-                meeting_time_utc = datetime.strptime(utc_time_str, '%H:%M').time()
-                meeting_datetime_utc = datetime.combine(now_utc.date(), meeting_time_utc, tzinfo=ZoneInfo("UTC"))
+                start_date = datetime.strptime(start_date_str, "%Y-%m-%d").date()
+                meeting_time_utc = datetime.strptime(utc_time_str, "%H:%M").time()
+                meeting_datetime_utc = datetime.combine(start_date, meeting_time_utc, tzinfo=ZoneInfo("UTC"))
             except Exception as e:
-                context.log(f"Skipping {schedule.get('$id')}: Invalid utcTime format: {e}")
+                context.log(f"Skipping meeting {meeting.get('$id')}: Invalid date/time format: {e}")
                 continue
 
+            # Convert to participant local time
             try:
                 local_tz = ZoneInfo(user_timezone)
                 meeting_local_time = meeting_datetime_utc.astimezone(local_tz)
                 reminder_local_time = meeting_local_time - timedelta(minutes=15)
             except Exception as e:
-                context.log(f"Skipping {schedule.get('$id')}: Invalid timezone '{user_timezone}' - {e}")
+                context.log(f"Skipping meeting {meeting.get('$id')}: Invalid timezone '{user_timezone}': {e}")
                 continue
 
-            user_now_local = now_utc.astimezone(local_tz)
+            # Current time in local timezone
+            now_local = datetime.now(tz=local_tz)
 
-            if abs((reminder_local_time - user_now_local).total_seconds()) <= 60:
-                current_day_name = get_day_name(user_now_local)
+            # 4️⃣ Check if reminder should be sent
+            if abs((reminder_local_time - now_local).total_seconds()) <= 60:  # ±1 min window
+                current_day_name = get_day_name(now_local)
                 normalized_frequency = schedule_frequency.lower()
-
                 should_send = False
-                if normalized_frequency == 'daily':
+
+                if normalized_frequency == "daily":
                     should_send = True
-                elif normalized_frequency == 'weekends only':
-                    if current_day_name in ['Saturday', 'Sunday']:
+                elif normalized_frequency == "weekends only":
+                    if current_day_name in ["Saturday", "Sunday"]:
                         should_send = True
                 elif current_day_name.lower() == normalized_frequency.lower():
                     should_send = True
 
                 if should_send:
-                    participant_targets = schedule.get('participants', [])
+                    participant_targets = meeting.get("participants", [])
                     if not participant_targets:
-                        context.log(f"Skipping {schedule.get('$id')}: No participants found.")
+                        context.log(f"Skipping meeting {meeting.get('$id')}: No participants found.")
                         continue
 
                     url = f"{URL_HOST}/meetings/{meeting_id}"
-                    time_display = meeting_local_time.strftime('%H:%M')
+                    time_display = meeting_local_time.strftime("%H:%M")
 
+                    # 5️⃣ Send email
                     messaging.create_email(
                         message_id=ID.unique(),
                         subject="⏰ The Clock Is Ticking! Join Your SkillSwap Session in 15 Minutes!",
@@ -126,12 +126,12 @@ def main(context):
                         html=True
                     )
 
-                    context.log(f"Sent reminder for meeting {meeting_id} at {time_display} ({user_timezone})")
+                    context.log(f"✅ Sent reminder for meeting {meeting_id} at {time_display} ({user_timezone})")
                     sent_count += 1
 
-        context.log(f"Successfully sent {sent_count} reminders.")
-        return context.res.json({'success': True, 'processed_reminders': sent_count})
+        context.log(f"All reminders processed. Total sent: {sent_count}")
+        return context.res.json({"success": True, "processed_reminders": sent_count})
 
     except Exception as e:
         context.log(f"Unexpected error: {e}")
-        return context.res.json({'success': False, 'error': str(e)})
+        return context.res.json({"success": False, "error": str(e)})
