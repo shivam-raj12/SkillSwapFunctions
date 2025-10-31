@@ -140,7 +140,7 @@ def main(context):
 
     # --- Handle conversations ---
     elif collection == "conversations" and action == "create":
-        if body.get("lastMessageText").matches("New conversation started"):
+        if body.get("lastMessageText") == "New conversation started":
             return context.res.json({"status": "success", "reason": "useless conversation"})
         owner_id = body.get("ownerId")
         other_id = body.get("otherUserId")
